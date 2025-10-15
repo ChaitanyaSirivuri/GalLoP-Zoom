@@ -149,3 +149,33 @@ LABEL_MAP = {
 def normalize_label(label: str) -> str:
     """Normalize a label to uppercase standard format."""
     return LABEL_MAP.get(label, LABEL_MAP.get(label.lower(), "UNKNOWN"))
+
+
+def get_gallop_prompt(claim: str, caption: str, drop_caption: bool = False, drop_claim: bool = False) -> str:
+    """
+    Get the GalLoP prompt with optional dropout.
+    Global Component: Caption (dropped if drop_caption=True)
+    Local Component: Claim (dropped if drop_claim=True)
+    """
+    
+    # Construct components (GalLoP strategy: Global=Caption, Local=Claim)
+    global_prompt = f"IMAGE CAPTION(S): {caption}" if not drop_caption else "IMAGE CAPTION(S): [Unavailable]"
+    local_prompt = f"CLAIM: {claim}" if not drop_claim else "CLAIM: [Unavailable]"
+    
+    prompt = f"""You are an AI model tasked with verifying claims related to visual evidence.
+
+{local_prompt}
+
+{global_prompt}
+
+Guidelines:
+1. Analyze the image and the provided text.
+2. Determine if the image SUPPORT, CONTRADICT, or is NEUTRAL to the claim.
+
+Output exactly one JSON object with key "decision".
+Value must be one of: "SUPPORT", "CONTRADICT", "NEUTRAL".
+
+Example:
+{{"decision": "SUPPORT"}}
+"""
+    return prompt
