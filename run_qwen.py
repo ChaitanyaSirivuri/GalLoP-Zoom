@@ -12,7 +12,7 @@ from transformers import Qwen2_5_VLForConditionalGeneration, AutoTokenizer, Auto
 from qwen_vl_utils import process_vision_info
 
 def process_all_images_qwen():
-    output_dir = "processed_crops_qwen"
+    output_dir = "localized_data"
     os.makedirs(output_dir, exist_ok=True)
 
     # 1. Load Model
@@ -31,37 +31,39 @@ def process_all_images_qwen():
     processor = AutoProcessor.from_pretrained(model_id)
 
     # 2. Get Data
-    print("Loading dataset metadata...")
-    try:
-        ds = load_dataset("StonyBrookNLP/MuSciClaims", split="test")
-    except:
-        ds = load_dataset("StonyBrookNLP/MuSciClaims", split="train")
+    # 2. Load Manifest
+    manifest_path = "dataset_manifest.json"
+    if not os.path.exists(manifest_path):
+        print("Manifest not found! Please run 'download_and_survey.py' first.")
+        # For verification/testing if manifest strictly required:
+        return
 
-    unique_images = {}
-    LIMIT = 5 # User requested limit for testing
-
-    print("Identifying unique images...")
-    for item in tqdm(ds):
-        fname = item['associated_figure_filepath']
-        if fname not in unique_images:
-            unique_images[fname] = item
-            if len(unique_images) >= LIMIT:
-                print(f"Reached limit of {LIMIT} unique images.")
-                break
+    print(f"Loading manifest from {manifest_path}...")
+    with open(manifest_path, "r") as f:
+        manifest = json.load(f)
+        
+    # User limit for testing (can be removed later)
+    LIMIT = 5 
+    if LIMIT:
+        print(f"Limiting to first {LIMIT} images for verification.")
+        manifest = manifest[:LIMIT]
     
     # 3. Processing Loop
-    chars = "ABCDEFGHIJ" # Look for these panels
     metadata = []
     
     print("Starting Qwen Extraction...")
-    for fname, item in tqdm(unique_images.items()):
+    for item in tqdm(manifest):
+        fname = item["original_filename"]
+        local_path = item["local_path"]
+        target_panels = item["panels"]
+        
+        print(f"Processing {fname} -> Panels: {target_panels}")
+
         try:
-            # Download
-            local_path = hf_hub_download(
-                repo_id="StonyBrookNLP/MuSciClaims",
-                filename=fname,
-                repo_type="dataset"
-            )
+            # Check file exists
+            if not os.path.exists(local_path):
+                print(f"  File missing: {local_path}")
+                continue
             
             # Prepare Image
             # Qwen handles 'image' path in messages
@@ -74,9 +76,11 @@ def process_all_images_qwen():
             w, h = image_source.size
             img_cv = cv2.cvtColor(np.array(image_source), cv2.COLOR_RGB2BGR)
 
+            PADDING = 20 # Safety margin
+
             for char in target_panels:
-                # Prompt: Explicitly ask for JSON and the subfigure content.
-                prompt_text = f"Detect the bounding box of the subfigure Panel {char}. Return the result in JSON format with key 'bbox_2d'."
+                # Prompt: Ask for inclusive box to avoid cutting labels
+                prompt_text = f"Detect the inclusive bounding box of the subfigure Panel {char}, ensuring all axes, labels, and ticks are included. Return the result in JSON format with key 'bbox_2d'."
                 
                 messages = [
                     {
@@ -160,14 +164,16 @@ def process_all_images_qwen():
                 if save_params:
                     x1, y1, x2, y2 = save_params
                     
+                    # Apply Padding
+                    x1 = max(0, x1 - PADDING)
+                    y1 = max(0, y1 - PADDING)
+                    x2 = min(w, x2 + PADDING)
+                    y2 = min(h, y2 + PADDING)
+                    
                     # Validate
                     if (x2 - x1) < 10 or (y2 - y1) < 10: 
                         print(f"  Skipping {char} (Too small)")
                         continue
-                    
-                    # Clamp
-                    x1, y1 = max(0, x1), max(0, y1)
-                    x2, y2 = min(w, x2), min(h, y2)
                     
                     # Crop
                     crop = img_cv[y1:y2, x1:x2]
@@ -177,7 +183,7 @@ def process_all_images_qwen():
                     save_path = os.path.join(output_dir, save_name)
                     
                     cv2.imwrite(save_path, crop)
-                    print(f"  Saved {save_name} (Box: {save_params})")
+                    print(f"  Saved {save_name} (Box: {save_params}, Padded)")
                     
                     metadata.append({
                         "original_image": fname,

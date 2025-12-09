@@ -7,17 +7,11 @@ from huggingface_hub import hf_hub_download
 from tqdm import tqdm
 
 def main():
-    print("Loading dataset...")
-    try:
-        ds = load_dataset("StonyBrookNLP/MuSciClaims", split="test")
-    except:
-        ds = load_dataset("StonyBrookNLP/MuSciClaims", split="train")
-        
-    print(f"Dataset Loaded. Total claim pairs: {len(ds)}")
+
+    ds = load_dataset("StonyBrookNLP/MuSciClaims", split="test")
+
+    unique_images = {}
     
-    unique_images = {} # fname -> set(panels)
-    
-    print("Aggregating unique images and panels...")
     for item in tqdm(ds):
         fname = item.get('associated_figure_filepath')
         if not fname: continue
@@ -29,24 +23,18 @@ def main():
         raw_panels = item.get('associated_figure_panels', [])
         if isinstance(raw_panels, list):
             for p in raw_panels:
-                # Clean "Panel A" -> "A"
                 clean_p = p.replace("Panel ", "").strip()
                 if len(clean_p) == 1 and clean_p.isalpha():
                     unique_images[fname].add(clean_p)
                 else:
-                    # Keep as is if weird? Or ignore? 
-                    # Let's keep strict for now to avoid noise
                     pass
 
     print(f"Found {len(unique_images)} unique images.")
     
-    # Download Phase
     output_dir = "raw_images"
     os.makedirs(output_dir, exist_ok=True)
     
     manifest = []
-    
-    print(f"Downloading images to {output_dir}...")
     
     success_count = 0
     fail_count = 0
