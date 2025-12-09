@@ -75,8 +75,8 @@ def process_all_images_qwen():
             img_cv = cv2.cvtColor(np.array(image_source), cv2.COLOR_RGB2BGR)
 
             for char in chars:
-                # Prompt tuning: Be explicit about "subfigure" to avoid just finding the text label.
-                prompt_text = f"Detect the bounding box of the subfigure Panel {char}."
+                # Prompt: Explicitly ask for JSON and the subfigure content.
+                prompt_text = f"Detect the bounding box of the subfigure Panel {char}. Return the result in JSON format with key 'bbox_2d'."
                 
                 messages = [
                     {
@@ -115,51 +115,78 @@ def process_all_images_qwen():
                 
                 print(f"DEBUG: Raw Output for {char}: {output_text}")
                 
-                # Robust Regex Parsing for <|box_start|>(y1,x1),(y2,x2)<|box_end|>
-                import re
-                # Pattern: (number,number),(number,number)
-                match = re.search(r"\((\d+),(\d+)\),\((\d+),(\d+)\)", output_text)
+                # Parsing Logic
+                save_params = None # (x1, y1, x2, y2)
                 
-                if match:
+                import re
+                
+                # 1. Try finding JSON block
+                # Look for [ ... ] or { ... }
+                json_match = re.search(r"(\[.*\]|\{.*\})", output_text, re.DOTALL)
+                if json_match:
                     try:
-                        # Qwen2-VL Output is usually (y1, x1), (y2, x2) in [0, 1000] scale
-                        # But let's verify if it's y,x or x,y.
-                        # Standard Qwen2-VL is (y_min, x_min), (y_max, x_max)
-                        y1_n, x1_n, y2_n, x2_n = map(int, match.groups())
+                        import json
+                        # Clean up markdown code blocks if present
+                        json_str = json_match.group(1).replace("```json", "").replace("```", "")
+                        data = json.loads(json_str)
                         
-                        # Scale to image
-                        x1 = int((x1_n / 1000) * w)
-                        y1 = int((y1_n / 1000) * h)
-                        x2 = int((x2_n / 1000) * w)
-                        y2 = int((y2_n / 1000) * h)
+                        if isinstance(data, list): data = data[0]
                         
-                        # Validate
-                        if (x2 - x1) < 10 or (y2 - y1) < 10: 
-                            print(f"  Skipping {char} (Too small)")
-                            continue
-                        
-                        # Crop
-                        crop = img_cv[y1:y2, x1:x2]
-                        
-                        clean_name = fname.replace("/", "_").replace(".jpg", "").replace(".png", "")
-                        save_name = f"{clean_name}_Panel_{char}.jpg"
-                        save_path = os.path.join(output_dir, save_name)
-                        
-                        cv2.imwrite(save_path, crop)
-                        print(f"  Saved {save_name}")
-                        
-                        metadata.append({
-                            "original_image": fname,
-                            "panel": char,
-                            "crop_path": save_name,
-                            "bbox": [x1, y1, x2, y2]
-                        })
+                        if "bbox_2d" in data:
+                            bbox = data["bbox_2d"]
+                            # Qwen2-VL JSON box seems to be [xmin, ymin, xmax, ymax] absolute vals based on logs
+                            # e.g. [2143, 75, 3098, 496]
+                            x1, y1, x2, y2 = bbox
+                            save_params = (int(x1), int(y1), int(x2), int(y2))
+                    except Exception as e_json:
+                        print(f"  JSON Parse Error: {e_json}")
 
-                    except Exception as e_parse:
-                        print(f"  Parse Error for {char}: {e_parse}")
+                # 2. Try the special token format if JSON failed
+                if save_params is None and "<|box_start|>" in output_text:
+                    try:
+                        segment = output_text.split("<|box_start|>")[1].split("<|box_end|>")[0]
+                        match = re.search(r"\((\d+),(\d+)\),\((\d+),(\d+)\)", segment)
+                        if match:
+                            y1_n, x1_n, y2_n, x2_n = map(int, match.groups())
+                            x1 = int((x1_n / 1000) * w)
+                            y1 = int((y1_n / 1000) * h)
+                            x2 = int((x2_n / 1000) * w)
+                            y2 = int((y2_n / 1000) * h)
+                            save_params = (x1, y1, x2, y2)
+                    except:
+                        pass
+
+                # If we got coordinates, Save
+                if save_params:
+                    x1, y1, x2, y2 = save_params
+                    
+                    # Validate
+                    if (x2 - x1) < 10 or (y2 - y1) < 10: 
+                        print(f"  Skipping {char} (Too small)")
+                        continue
+                    
+                    # Clamp
+                    x1, y1 = max(0, x1), max(0, y1)
+                    x2, y2 = min(w, x2), min(h, y2)
+                    
+                    # Crop
+                    crop = img_cv[y1:y2, x1:x2]
+                    
+                    clean_name = fname.replace("/", "_").replace(".jpg", "").replace(".png", "")
+                    save_name = f"{clean_name}_Panel_{char}.jpg"
+                    save_path = os.path.join(output_dir, save_name)
+                    
+                    cv2.imwrite(save_path, crop)
+                    print(f"  Saved {save_name} (Box: {save_params})")
+                    
+                    metadata.append({
+                        "original_image": fname,
+                        "panel": char,
+                        "crop_path": save_name,
+                        "bbox": [x1, y1, x2, y2]
+                    })
                 else:
-                    # Fallback or just ignore
-                    pass
+                    print(f"  No box found for {char}")
 
         except Exception as e:
             print(f"Failed {fname}: {e}")
