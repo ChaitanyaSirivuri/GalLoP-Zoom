@@ -75,7 +75,8 @@ def process_all_images_qwen():
             img_cv = cv2.cvtColor(np.array(image_source), cv2.COLOR_RGB2BGR)
 
             for char in chars:
-                prompt_text = f"Detect the bounding box of Panel {char}."
+                # Prompt tuning: Be explicit about "subfigure" to avoid just finding the text label.
+                prompt_text = f"Detect the bounding box of the subfigure Panel {char}."
                 
                 messages = [
                     {
@@ -101,7 +102,6 @@ def process_all_images_qwen():
                 ).to(device)
                 
                 # Generate
-                # Generate
                 with torch.no_grad():
                     generated_ids = model.generate(**inputs, max_new_tokens=128)
                 
@@ -113,23 +113,19 @@ def process_all_images_qwen():
                     generated_ids_trimmed, skip_special_tokens=False
                 )[0]
                 
-                print(f"DEBUG: Raw Output for {char}: {output_text}") # Debugging line
+                print(f"DEBUG: Raw Output for {char}: {output_text}")
                 
-                # Parse Output: <|box_start|>(ymin,xmin),(ymax,xmax)<|box_end|>
-                # Example response: "<|im_start|>system... <|im_start|>user... <|im_start|>assistant<|box_start|>(200,200),(500,500)<|box_end|>"
+                # Robust Regex Parsing for <|box_start|>(y1,x1),(y2,x2)<|box_end|>
+                import re
+                # Pattern: (number,number),(number,number)
+                match = re.search(r"\((\d+),(\d+)\),\((\d+),(\d+)\)", output_text)
                 
-                if "<|box_start|>" in output_text:
-                    # Extract content between box_start and box_end
-                    segment = output_text.split("<|box_start|>")[1].split("<|box_end|>")[0]
-                    # Format is (y1,x1),(y2,x2) unnormalized? No, Qwen VL usually outputs scaled coords 0-1000 or normalized?
-                    # Qwen2.5-VL uses normalized prompts usually? 
-                    # Actually wait, Qwen2.5-VL uses specific coordinate mapping (0-1000).
-                    # Documentation says: (y1, x1), (y2, x2) in [0, 1000] scale.
-                    
+                if match:
                     try:
-                        coords_str = segment.replace("(", "").replace(")", "").split(",")
-                        # y1, x1, y2, x2
-                        y1_n, x1_n, y2_n, x2_n = map(int, coords_str)
+                        # Qwen2-VL Output is usually (y1, x1), (y2, x2) in [0, 1000] scale
+                        # But let's verify if it's y,x or x,y.
+                        # Standard Qwen2-VL is (y_min, x_min), (y_max, x_max)
+                        y1_n, x1_n, y2_n, x2_n = map(int, match.groups())
                         
                         # Scale to image
                         x1 = int((x1_n / 1000) * w)
@@ -138,7 +134,9 @@ def process_all_images_qwen():
                         y2 = int((y2_n / 1000) * h)
                         
                         # Validate
-                        if (x2 - x1) < 10 or (y2 - y1) < 10: continue
+                        if (x2 - x1) < 10 or (y2 - y1) < 10: 
+                            print(f"  Skipping {char} (Too small)")
+                            continue
                         
                         # Crop
                         crop = img_cv[y1:y2, x1:x2]
@@ -158,8 +156,10 @@ def process_all_images_qwen():
                         })
 
                     except Exception as e_parse:
-                        # Parsing failed (maybe model refused or hallucinated format)
-                        pass
+                        print(f"  Parse Error for {char}: {e_parse}")
+                else:
+                    # Fallback or just ignore
+                    pass
 
         except Exception as e:
             print(f"Failed {fname}: {e}")
