@@ -101,11 +101,16 @@ def process_all_images_qwen():
                 ).to(device)
                 
                 # Generate
+                # Generate
                 with torch.no_grad():
                     generated_ids = model.generate(**inputs, max_new_tokens=128)
                 
+                # Decode ONLY new tokens
+                generated_ids_trimmed = [
+                    out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+                ]
                 output_text = processor.batch_decode(
-                    generated_ids, skip_special_tokens=False
+                    generated_ids_trimmed, skip_special_tokens=False
                 )[0]
                 
                 print(f"DEBUG: Raw Output for {char}: {output_text}") # Debugging line
