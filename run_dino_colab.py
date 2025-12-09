@@ -37,8 +37,13 @@ def process_all_images():
 
     # 2. Get Unique Images from Dataset
     print("Loading dataset metadata...")
-    # Use 'train' split for the full dataset generation
-    ds = load_dataset("StonyBrookNLP/MuSciClaims", split="train") 
+    # NOTE: MuSciClaims on HF only lists 'test' split in default config. 
+    # We use 'test' for now to ensure this runs. 
+    try:
+        ds = load_dataset("StonyBrookNLP/MuSciClaims", split="test")
+    except Exception as e:
+        print(f"Error loading 'test' split: {e}. Trying 'train'...")
+        ds = load_dataset("StonyBrookNLP/MuSciClaims", split="train") 
     
     unique_images = {} 
     
