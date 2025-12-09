@@ -48,10 +48,15 @@ def process_all_images():
     unique_images = {} 
     
     print("Identifying unique images...")
+    LIMIT = 5 # User requested limit
+    
     for item in tqdm(ds):
         fname = item['associated_figure_filepath']
         if fname not in unique_images:
             unique_images[fname] = item 
+            if len(unique_images) >= LIMIT:
+                print(f"Reached limit of {LIMIT} unique images.")
+                break
             
     print(f"Found {len(unique_images)} unique images for processing.")
     

@@ -6,8 +6,13 @@ git clone https://github.com/IDEA-Research/GroundingDINO.git
 cd GroundingDINO/
 
 echo "Installing dependencies..."
-pip install -q -e .
+# Ensure CUDA_HOME is set for Colab (usually /usr/local/cuda)
+export CUDA_HOME=/usr/local/cuda
+echo "CUDA_HOME is set to $CUDA_HOME"
+
 pip install -q huggingface_hub datasets
+# Install with verbose output to see compilation errors
+pip install -v -e .
 
 # 2. Download Weights
 echo "Downloading weights..."
