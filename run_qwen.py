@@ -25,7 +25,7 @@ def process_all_images_qwen():
 
     model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
         model_id,
-        torch_dtype=dtype,
+        dtype=dtype,
         device_map="auto"
     )
     processor = AutoProcessor.from_pretrained(model_id)
@@ -107,6 +107,8 @@ def process_all_images_qwen():
                 output_text = processor.batch_decode(
                     generated_ids, skip_special_tokens=False
                 )[0]
+                
+                print(f"DEBUG: Raw Output for {char}: {output_text}") # Debugging line
                 
                 # Parse Output: <|box_start|>(ymin,xmin),(ymax,xmax)<|box_end|>
                 # Example response: "<|im_start|>system... <|im_start|>user... <|im_start|>assistant<|box_start|>(200,200),(500,500)<|box_end|>"
