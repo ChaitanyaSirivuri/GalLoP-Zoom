@@ -10,7 +10,7 @@ from datasets import load_dataset
 from tqdm import tqdm
 import sys
 
-# Ensure GroundingDINO is in path (common issue in Colab/Repos)
+# Ensure GroundingDINO is in path
 if os.path.isdir("GroundingDINO"):
     sys.path.append(os.path.join(os.getcwd(), "GroundingDINO"))
 
@@ -30,20 +30,22 @@ def process_all_images():
     
     if not os.path.exists(config_path) or not os.path.exists(weights_path):
         print("Error: Model files not found. Please run setup_colab.sh first.")
-        return
+        # Try to download if missing
+        if not os.path.exists("GroundingDINO/weights"):
+            os.makedirs("GroundingDINO/weights", exist_ok=True)
+            print("Downloading weights fallback...")
+            os.system(f"wget -q https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alpha/groundingdino_swint_ogc.pth -O {weights_path}")
 
     print("Loading GroundingDINO...")
     model = load_model(config_path, weights_path)
 
     # 2. Get Unique Images from Dataset
     print("Loading dataset metadata...")
-    # NOTE: MuSciClaims on HF only lists 'test' split in default config. 
-    # We use 'test' for now to ensure this runs. 
+    # Use 'test' split as verified
     try:
         ds = load_dataset("StonyBrookNLP/MuSciClaims", split="test")
-    except Exception as e:
-        print(f"Error loading 'test' split: {e}. Trying 'train'...")
-        ds = load_dataset("StonyBrookNLP/MuSciClaims", split="train") 
+    except Exception:
+        ds = load_dataset("StonyBrookNLP/MuSciClaims", split="train")
     
     unique_images = {} 
     
@@ -61,12 +63,10 @@ def process_all_images():
     print(f"Found {len(unique_images)} unique images for processing.")
     
     # 3. Process Batch
-    # Prompt: We look for all alphabetical panels reasonably expected
     chars = "ABCDEFGHIJKLM" 
     ALL_PANELS_PROMPT = " . ".join([f"Panel {char}" for char in chars])
     
-    # Thresholds
-    BOX_ERR = 0.25 # Slightly looser to catch everything
+    BOX_ERR = 0.25 
     TEXT_ERR = 0.25
 
     metadata = []
@@ -96,9 +96,7 @@ def process_all_images():
             h, w, _ = image_source.shape
             
             for box, phrase in zip(boxes, phrases):
-                # Clean phrase to get ID (e.g. "Panel A" -> "A")
                 panel_id = phrase.replace("Panel", "").strip().upper() 
-                # Basic validation: ensure it's a single letter or close to it
                 if len(panel_id) > 2: continue 
                 
                 # Unnormalize box
@@ -108,11 +106,9 @@ def process_all_images():
                 x2 = int(cx + bw/2)
                 y2 = int(cy + bh/2)
                 
-                # Clip
                 x1, y1 = max(0, x1), max(0, y1)
                 x2, y2 = min(w, x2), min(h, y2)
                 
-                # Filter tiny boxes (noise)
                 if (x2 - x1) < 10 or (y2 - y1) < 10: continue
 
                 crop = image_source[y1:y2, x1:x2]

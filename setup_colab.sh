@@ -1,25 +1,25 @@
-#!/bin/bash
-
 # 1. Install GroundingDINO
 echo "Cloning GroundingDINO..."
 git clone https://github.com/IDEA-Research/GroundingDINO.git
 cd GroundingDINO/
 
+echo "Patching GroundingDINO for PyTorch 2.x..."
+# Fix for "const at::DeprecatedTypeProperties" error in ms_deform_attn_cuda.cu
+# Replaces value.type() with value.scalar_type()
+sed -i 's/value.type()/value.scalar_type()/g' groundingdino/models/GroundingDINO/csrc/MsDeformAttn/ms_deform_attn_cuda.cu
+
 echo "Installing dependencies..."
-# Ensure CUDA_HOME is set for Colab (usually /usr/local/cuda)
+# Ensure CUDA_HOME is set
 export CUDA_HOME=/usr/local/cuda
+export CUDA_PATH=/usr/local/cuda
+export PATH=$CUDA_HOME/bin:$PATH
 echo "CUDA_HOME is set to $CUDA_HOME"
+echo "Checking nvcc..."
+nvcc --version
 
-pip install -q huggingface_hub datasets
-# Install with verbose output to see compilation errors
-pip install -v -e .
+pip install -e .
 
-# 2. Download Weights
-echo "Downloading weights..."
-mkdir -p weights
+mkdir weights
 cd weights
 wget -q https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alpha/groundingdino_swint_ogc.pth
 cd ..
-cd ..
-
-echo "Setup Complete. You can now run 'python run_dino_colab.py'"
