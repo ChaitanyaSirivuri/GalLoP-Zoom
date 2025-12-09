@@ -74,7 +74,7 @@ def process_all_images_qwen():
             w, h = image_source.size
             img_cv = cv2.cvtColor(np.array(image_source), cv2.COLOR_RGB2BGR)
 
-            for char in chars:
+            for char in target_panels:
                 # Prompt: Explicitly ask for JSON and the subfigure content.
                 prompt_text = f"Detect the bounding box of the subfigure Panel {char}. Return the result in JSON format with key 'bbox_2d'."
                 
