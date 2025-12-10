@@ -30,7 +30,7 @@ uv run python -m benchmark.benchmark_qwen25_vl
 python -m benchmark.benchmark_qwen25_vl
 ```
 
-**Qwen3-VL-30B-A3B-Instruct:**
+**Qwen3-VL-8B-Instruct:**
 ```bash
 # Windows PowerShell
 uv run python -m benchmark.benchmark_qwen3_vl
@@ -90,7 +90,7 @@ benchmark/
 ## GPU Requirements
 
 - **Qwen2.5-VL-7B**: ~16GB VRAM
-- **Qwen3-VL-30B-A3B**: ~40GB VRAM (MoE architecture)
+- **Qwen3-VL-8B**: ~16GB VRAM
 - **LLaVA-Next-7B**: ~16GB VRAM
 
 For lower VRAM, you can modify the scripts to use 4-bit quantization.

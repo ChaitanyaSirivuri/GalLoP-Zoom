@@ -1,5 +1,5 @@
 """
-Benchmark script for Qwen3-VL-30B-A3B-Instruct on MuSciClaims dataset.
+Benchmark script for Qwen3-VL-8B-Instruct on MuSciClaims dataset.
 """
 
 import os
@@ -22,28 +22,28 @@ from PIL import Image
 
 def load_model():
     """Load Qwen3-VL model and processor."""
-    print("Loading Qwen3-VL-30B-A3B-Instruct model...")
+    print("Loading Qwen3-VL-8B-Instruct model...")
     
     # Note: Qwen3-VL may require different class depending on transformers version
     # Try Qwen3VLMoeForConditionalGeneration first, fallback to Qwen2VLForConditionalGeneration
     try:
         from transformers import Qwen3VLMoeForConditionalGeneration
         model = Qwen3VLMoeForConditionalGeneration.from_pretrained(
-            "Qwen/Qwen3-VL-30B-A3B-Instruct",
-            torch_dtype="auto",
+            "Qwen/Qwen3-VL-8B-Instruct",
+            dtype="auto",
             device_map="auto"
         )
     except ImportError:
         print("Qwen3VLMoeForConditionalGeneration not available, trying alternative...")
         from transformers import AutoModelForCausalLM
         model = AutoModelForCausalLM.from_pretrained(
-            "Qwen/Qwen3-VL-30B-A3B-Instruct",
-            torch_dtype="auto",
+            "Qwen/Qwen3-VL-8B-Instruct",
+            dtype="auto",
             device_map="auto",
             trust_remote_code=True
         )
     
-    processor = AutoProcessor.from_pretrained("Qwen/Qwen3-VL-30B-A3B-Instruct")
+    processor = AutoProcessor.from_pretrained("Qwen/Qwen3-VL-8B-Instruct")
     
     print("Model loaded successfully!")
     return model, processor
@@ -163,13 +163,13 @@ def run_benchmark():
     metrics = calculate_metrics(predictions, labels)
     
     # Print results
-    print_metrics(metrics, "Qwen3-VL-30B-A3B-Instruct")
+    print_metrics(metrics, "Qwen3-VL-8B-Instruct")
     
     # Save results
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
     metrics_path = os.path.join(output_dir, f"qwen3_vl_metrics_{timestamp}.csv")
-    save_metrics_to_csv(metrics, metrics_path, "Qwen3-VL-30B-A3B-Instruct")
+    save_metrics_to_csv(metrics, metrics_path, "Qwen3-VL-8B-Instruct")
     
     predictions_path = os.path.join(output_dir, f"qwen3_vl_predictions_{timestamp}.csv")
     save_predictions_to_csv(results, predictions_path)
@@ -178,7 +178,7 @@ def run_benchmark():
     json_path = os.path.join(output_dir, f"qwen3_vl_results_{timestamp}.json")
     with open(json_path, 'w', encoding='utf-8') as f:
         json.dump({
-            "model": "Qwen3-VL-30B-A3B-Instruct",
+            "model": "Qwen3-VL-8B-Instruct",
             "timestamp": timestamp,
             "metrics": metrics,
             "total_samples": len(results),
