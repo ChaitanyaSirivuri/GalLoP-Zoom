@@ -86,15 +86,15 @@ def run_inference(model, processor, image: Image.Image, prompt: str) -> str:
     # Generate
     with torch.no_grad():
         generated_ids = model.generate(**inputs, max_new_tokens=256)
-    
+    print(f"Generated IDs: {generated_ids}")
     generated_ids_trimmed = [
         out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
     ]
-    
+    print(f"Trimmed Generated IDs: {generated_ids_trimmed}")
     output_text = processor.batch_decode(
         generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
     )
-    
+    print(f"Output Text: {output_text}")
     return output_text[0] if output_text else ""
 
 

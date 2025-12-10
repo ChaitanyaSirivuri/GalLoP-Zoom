@@ -71,7 +71,7 @@ def run_inference(model, processor, image: Image.Image, prompt: str) -> str:
     # Generate
     with torch.no_grad():
         output = model.generate(**inputs, max_new_tokens=256)
-    
+    print(f"Generated Output IDs: {output}")
     # Decode output
     response = processor.decode(output[0], skip_special_tokens=True)
     
@@ -79,7 +79,7 @@ def run_inference(model, processor, image: Image.Image, prompt: str) -> str:
     # Find the last occurrence of the prompt or assistant marker
     if "[/INST]" in response:
         response = response.split("[/INST]")[-1].strip()
-    
+    print(f"Output Text: {response}")
     return response
 
 
